@@ -42,6 +42,9 @@ def consumer(i, q, sdr_command):
         total = data['total']
         stop = data['stop']
 
+        if os.path.isfile(os.path.join(path, "info.txt")):
+            continue
+
         if stop:
             break
 
