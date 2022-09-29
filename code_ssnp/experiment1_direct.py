@@ -18,13 +18,14 @@ from glob import glob
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from MulticoreTSNE import MulticoreTSNE as TSNE
 from PIL import Image, ImageFont
 from skimage import io
+from sklearn.manifold import TSNE
 from sklearn.cluster import (AgglomerativeClustering, KMeans)
 from sklearn.model_selection import train_test_split
 from umap import UMAP
 from tqdm import tqdm
+from argparse import ArgumentParser
 
 import ae
 import metrics
@@ -58,12 +59,26 @@ def cantor_pairing(y1, y2):
     return y_res
 
 
+def get_args():
+    parser = ArgumentParser()
+    parser.add_argument("-m", "--mode", dest="mode", default="basic", help="Specifies the mode which directories should"
+                                                                           "be used. The options are: basic, tfidf,"
+                                                                           " full (default:basic)."
+                                                                           " Basic will only run the datasets"
+                                                                           "of the original paper by Espadoto, tfidf"
+                                                                           " will only add the tfidf datasets and bow"
+                                                                           " will add bow and tfidf datasets")
+    args = parser.parse_args()
+    return args
+
+
 if __name__ == '__main__':
     # patience = 5
     # epochs = 200
 
     # min_delta = 0.05
-
+    args = get_args()
+    mode = str(args.mode).lower()
     verbose = False
     results = []
 
@@ -73,9 +88,18 @@ if __name__ == '__main__':
         os.makedirs(output_dir)
 
     data_dir = '../data'
-    data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters', '20_newsgroups_bow', '20_newsgroups_tfidf', 'ag_news_bow',
-                 'ag_news_tfidf', 'hatespeech_bow', 'hatespeech_tfidf', 'imdb_bow', 'imdb_tfidf', 'sms_spam_bow',
-                 'sms_spam_tfidf']
+    if mode == "full":
+        data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters', '20_newsgroups_bow', '20_newsgroups_tfidf', 'ag_news_bow',
+                     'ag_news_tfidf', 'hatespeech_bow', 'hatespeech_tfidf', 'imdb_bow', 'imdb_tfidf', 'sms_spam_bow',
+                     'sms_spam_tfidf']
+    elif mode == "tfidf":
+        data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters', '20_newsgroups_tfidf',
+                     'ag_news_tfidf', 'hatespeech_tfidf', 'imdb_tfidf', 'sms_spam_tfidf']
+    elif mode == "basic":
+        data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters']
+    else:
+        raise ValueError("Unrecognized mode " + mode + " only available options are: basic, tfidf and full"
+                                                       " (default: basic).")
     classes_mult_set = [1, 2, 3, 4, 5]
     epochs_set = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
     patience_set = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -102,16 +126,18 @@ if __name__ == '__main__':
         for d in data_dirs:
             dataset_name = d
 
+            print('------------------------------------------------------')
+            print('Dataset: {0}'.format(dataset_name))
+
             X = np.load(os.path.join(data_dir, d, 'X.npy'))
             y = np.load(os.path.join(data_dir, d, 'y.npy'))
 
-            print('------------------------------------------------------')
-            print('Dataset: {0}'.format(dataset_name))
-            print(X.shape)
-            print(y.shape)
+            print("X shape: " + str(X.shape))
+            print("y shape: " + str(y.shape))
             print(np.unique(y))
 
             n_classes = len(np.unique(y)) * classes_mult[dataset_name]
+            print("Using num_clusters: " + str(n_classes))
             n_samples = X.shape[0]
 
             train_size = min(int(n_samples * 0.9), 5000)

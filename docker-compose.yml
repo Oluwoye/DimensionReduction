@@ -1,0 +1,18 @@
+version: "3.0"
+
+services:
+  benchmark:
+    env_file:
+      - ".docker-compose-env"
+    build:
+      context: '.'
+      dockerfile: 'Dockerfile'
+    command: ["./code_ssnp/experiment1_direct.py", "--mode", "tfidf"]
+    volumes:
+      - ./data/:/data
+      - ./code_ssnp/results_direct/:/code_ssnp/results_direct
+      - /tmp/:/tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '20'

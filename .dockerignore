@@ -1,0 +1,8 @@
+binaries/*
+data/_sdr/*
+data/*_bow/*
+venv/*
+code_ssnp/results_direct/*
+LICENSE
+README.md
+Multicore-TSNE/*
