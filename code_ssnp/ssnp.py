@@ -1,6 +1,7 @@
 import gc
 import os
 import numpy as np
+from tensorflow.keras import initializers
 from sklearn.neighbors import NearestNeighbors, DistanceMetric
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
 import tensorflow as tf
@@ -27,7 +28,8 @@ class SSNP():
         self.verbose = verbose
         self.opt = opt
         self.act = act
-        self.init = init
+        if init == "glorot_uniform":
+            self.init = initializers.GlorotUniform(seed=420)
         self.bias = bias
         self.input_l1 = input_l1
         self.input_l2 = input_l2

@@ -302,24 +302,24 @@ if __name__ == '__main__':
                 print(fname)
                 plot(X_, y_train, fname)
 
-    df = pd.DataFrame(results, columns=['dataset_name',
-                                        'test_name',
-                                        'T_train',
-                                        'C_train',
-                                        'R_train',
-                                        'S_train',
-                                        'N_train',
-                                        'MSE_train',
-                                        'ha_train',
-                                        'sh_train',
-                                        'd_train',
-                                        'sdbw_train',
-                                        'num_epoch',
-                                        'n_cluster',
-                                        'patience',
-                                        'min_delta'])
+            df = pd.DataFrame(results, columns=['dataset_name',
+                                                'test_name',
+                                                'T_train',
+                                                'C_train',
+                                                'R_train',
+                                                'S_train',
+                                                'N_train',
+                                                'MSE_train',
+                                                'ha_train',
+                                                'sh_train',
+                                                'd_train',
+                                                'sdbw_train',
+                                                'num_epoch',
+                                                'n_cluster',
+                                                'patience',
+                                                'min_delta'])
 
-    df.to_csv(os.path.join(output_dir, 'metrics.csv'), header=True, index=False)
+            df.to_csv(os.path.join(output_dir, 'metrics.csv'), header=True, index=False)
 
     # don't plot NNP
     font = ImageFont.truetype("/usr/share/fonts/dejavu/DejaVuSans.ttf", 50)
