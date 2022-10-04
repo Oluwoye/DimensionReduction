@@ -429,12 +429,8 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
                              ['SSNP-GT', 'SSNP-KMeans', 'SSNP-IF', 'SSNP-KMeans-IF', 'SSNP-AG', 'SSNP-AG-IF',
                               'SSNP-KM-AG-IF',
                               'SSNP-LOF', 'SSNP-KMeans-LOF', 'SSNP-AG-LOF', 'SSNP-KM-AG-LOF', 'AE']):
-            if "KM" in label or "AG" in label:
-                fname = os.path.join(output_dir, '{0}_{1}_epochs_{2}_n_cluster_{3}_patience_{4}_min_delta_{5}.png'.
-                                     format(dataset_name, label, num_epoch, n_classes, patience, min_delta))
-            else:
-                fname = os.path.join(output_dir, '{0}_{1}_epochs_{2}_patience_{3}_min_delta_{4}.png'.
-                                     format(dataset_name, label, num_epoch, patience, min_delta))
+            fname = os.path.join(output_dir, '{0}_{1}_epochs_{2}_n_cluster_{3}_patience_{4}_min_delta_{5}.png'.
+                                 format(dataset_name, label, num_epoch, n_classes, patience, min_delta))
             print(fname)
             plot(X_, y_train, fname)
 
