@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import os
+import random
+import time
 import warnings
 from itertools import product
 
@@ -12,6 +14,7 @@ from code_ssnp.common import compute_all_metrics
 
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+time_stamp = int(time.time())
 
 from glob import glob
 
@@ -68,28 +71,63 @@ def get_args():
                                                                            "of the original paper by Espadoto, tfidf"
                                                                            " will only add the tfidf datasets and bow"
                                                                            " will add bow and tfidf datasets")
+    parser.add_argument("-nj", "--n_jobs", dest="n_jobs", default=-1, help="Specifies how many cores are available."
+                                                                           " If a value less than 1 or 1 is given"
+                                                                           " (default: -1) no parallelization"
+                                                                           " will be used.")
+    parser.add_argument("-opt", "--optimization", dest="optimization", default="random", help="Specifies which kind"
+                                                                                              "of optimization/"
+                                                                                              "exploration will"
+                                                                                              " be used."
+                                                                                              " Only available values"
+                                                                                              " are GRID and RANDOM")
+    parser.add_argument("-rp", "--random_permutations", dest="random_permutations", default=100, help="If -opt RANDOM,"
+                                                                                                      " than this value"
+                                                                                                      " specifies how"
+                                                                                                      " many"
+                                                                                                      " permutations"
+                                                                                                      " will be"
+                                                                                                      " investigated")
     args = parser.parse_args()
     return args
 
 
-if __name__ == '__main__':
-    # patience = 5
-    # epochs = 200
+def perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=4):
+    tsne = TSNE(n_jobs=n_jobs, random_state=420)
+    X_tsne = tsne.fit_transform(X_train)
+    ump = UMAP(random_state=420)
+    X_umap = ump.fit_transform(X_train)
+    nnp = nnproj.NNProj(init=TSNE(n_jobs=n_jobs, random_state=420))
+    nnp.fit(X_train)
+    X_nnp = nnp.transform(X_train)
+    D_tsne = metrics.compute_distance_list(X_tsne)
+    D_umap = metrics.compute_distance_list(X_umap)
+    D_nnp = metrics.compute_distance_list(X_nnp)
+    results.append((dataset_name, 'TSNE',) + compute_all_metrics(X_train, X_tsne, D_high, D_tsne, y_train)
+                   + (-1, -1, -1, -1))
+    results.append((dataset_name, 'UMAP',) + compute_all_metrics(X_train, X_umap, D_high, D_umap, y_train)
+                   + (-1, -1, -1, -1))
+    results.append((dataset_name, 'NNP',) + compute_all_metrics(X_train, X_nnp, D_high, D_nnp, y_train)
+                   + (-1, -1, -1, -1))
 
-    # min_delta = 0.05
+    return results
+
+
+def main():
     args = get_args()
     mode = str(args.mode).lower()
+    n_jobs = int(args.n_jobs) - 1  # -1 for accounting for the main thread
+    opt = str(args.optimization).lower()
+    rp = int(args.random_permutations)
     verbose = False
     results = []
-
     output_dir = 'results_direct'
-
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
     data_dir = '../data'
     if mode == "full":
-        data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters', '20_newsgroups_bow', '20_newsgroups_tfidf', 'ag_news_bow',
+        data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters', '20_newsgroups_bow', '20_newsgroups_tfidf',
+                     'ag_news_bow',
                      'ag_news_tfidf', 'hatespeech_bow', 'hatespeech_tfidf', 'imdb_bow', 'imdb_tfidf', 'sms_spam_bow',
                      'sms_spam_tfidf']
     elif mode == "tfidf":
@@ -104,9 +142,32 @@ if __name__ == '__main__':
     epochs_set = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
     patience_set = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     min_delta_set = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1]
-    param_grid = list(product(epochs_set, classes_mult_set, patience_set, min_delta_set))
 
-    for num_epoch, num_classes_mult, patience, min_delta in tqdm(param_grid):
+    parameter_grid = list(product(epochs_set, classes_mult_set, patience_set, min_delta_set))
+    if opt == "grid":
+        parameter_set = parameter_grid
+    elif opt == "random":
+        parameter_set = random.sample(parameter_grid, rp)
+    else:
+        raise ValueError("Only GRID and RANDOM are permitted values for opt (default RANDOM)")
+
+    for d in data_dirs:
+        dataset_name = d
+
+        print("Starting non-parametric-analysis")
+        print('------------------------------------------------------')
+        print('Dataset: {0}'.format(dataset_name))
+
+        X = np.load(os.path.join(data_dir, d, 'X.npy'))
+        y = np.load(os.path.join(data_dir, d, 'y.npy'))
+
+        n_samples = X.shape[0]
+        train_size = min(int(n_samples * 0.9), 5000)
+
+        X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
+        D_high = metrics.compute_distance_list(X_train)
+        results = perform_non_parametric_drs(X_train, D_high, y_train, dataset_name, results, n_jobs=n_jobs)
+    for num_epoch, num_classes_mult, patience, min_delta in tqdm(parameter_set):
         epochs_dataset = dict()
         for dataset_name in data_dirs:
             epochs_dataset[dataset_name] = num_epoch
@@ -211,19 +272,9 @@ if __name__ == '__main__':
             ssnpkmaglof.fit(X_train, y_res_kmaglof)
             X_ssnpkmaglof = ssnpkmaglof.transform(X_train)
 
-            tsne = TSNE(n_jobs=4, random_state=420)
-            X_tsne = tsne.fit_transform(X_train)
-
-            ump = UMAP(random_state=420)
-            X_umap = ump.fit_transform(X_train)
-
             aep = ae.AutoencoderProjection(epochs=epochs, verbose=0)
             aep.fit(X_train)
             X_aep = aep.transform(X_train)
-
-            nnp = nnproj.NNProj(init=TSNE(n_jobs=4, random_state=420))
-            nnp.fit(X_train)
-            X_nnp = nnp.transform(X_train)
 
             D_ssnpgt = metrics.compute_distance_list(X_ssnpgt)
             D_ssnpkm = metrics.compute_distance_list(X_ssnpkm)
@@ -236,10 +287,7 @@ if __name__ == '__main__':
             D_ssnpkmlof = metrics.compute_distance_list(X_ssnpkmlof)
             D_ssnpaglof = metrics.compute_distance_list(X_ssnpaglof)
             D_ssnpkmaglof = metrics.compute_distance_list(X_ssnpkmaglof)
-            D_tsne = metrics.compute_distance_list(X_tsne)
-            D_umap = metrics.compute_distance_list(X_umap)
             D_aep = metrics.compute_distance_list(X_aep)
-            D_nnp = metrics.compute_distance_list(X_nnp)
 
             results.append(
                 (dataset_name, 'SSNP-GT',) + compute_all_metrics(X_train, X_ssnpgt, D_high, D_ssnpgt, y_train)
@@ -280,12 +328,6 @@ if __name__ == '__main__':
                 + (num_epoch, n_classes, patience, min_delta))
             results.append((dataset_name, 'AE',) + compute_all_metrics(X_train, X_aep, D_high, D_aep, y_train)
                            + (num_epoch, -1, patience, min_delta))
-            results.append((dataset_name, 'TSNE',) + compute_all_metrics(X_train, X_tsne, D_high, D_tsne, y_train)
-                           + (num_epoch, -1, patience, min_delta))
-            results.append((dataset_name, 'UMAP',) + compute_all_metrics(X_train, X_umap, D_high, D_umap, y_train)
-                           + (num_epoch, -1, patience, min_delta))
-            results.append((dataset_name, 'NNP',) + compute_all_metrics(X_train, X_nnp, D_high, D_nnp, y_train)
-                           + (num_epoch, n_classes, patience, min_delta))
 
             for X_, label in zip([X_ssnpgt, X_ssnpkm, X_ssnpif, X_ssnpkmif, X_ssnpag, X_ssnpagif, X_ssnpkmagif,
                                   X_ssnplof, X_ssnpkmlof, X_ssnpaglof, X_ssnpkmaglof, X_umap, X_tsne, X_aep, X_nnp],
@@ -319,15 +361,12 @@ if __name__ == '__main__':
                                                 'patience',
                                                 'min_delta'])
 
-            df.to_csv(os.path.join(output_dir, 'metrics.csv'), header=True, index=False)
-
+            df.to_csv(os.path.join(output_dir, "metrics_" + str(time_stamp) + ".csv"), header=True, index=False)
     # don't plot NNP
     font = ImageFont.truetype("/usr/share/fonts/dejavu/DejaVuSans.ttf", 50)
     pri_images = ['SSNP-KMeans', 'SSNP-AG', 'AE', 'TSNE', 'UMAP', 'SSNP-GT']
-
     images = glob(output_dir + '/*.png')
     base = 2000
-
     for d in data_dirs:
         dataset_name = d
         to_paste = []
@@ -346,13 +385,10 @@ if __name__ == '__main__':
 
         for i, label in enumerate(pri_images):
             print('/composite_full_{0}.png'.format(dataset_name), "{0} {1}".format(dataset_name, label))
-
     font = ImageFont.truetype("/usr/share/fonts/dejavu/DejaVuSans.ttf", 50)
     pri_images = ['SSNP-KMeans', 'SSNP-AG', 'AE']
-
     images = glob(output_dir + '/*.png')
     base = 2000
-
     for d in data_dirs:
         dataset_name = d
         to_paste = []
@@ -371,3 +407,7 @@ if __name__ == '__main__':
 
         for i, label in enumerate(pri_images):
             print('/composite_{0}.png'.format(dataset_name), "{0} {1}".format(dataset_name, label))
+
+
+if __name__ == '__main__':
+    main()
