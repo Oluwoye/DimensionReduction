@@ -5,6 +5,7 @@ from tensorflow.keras.initializers import Constant
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import regularizers, optimizers
+import tensorflow as tf
 
 class NNProj():
     def __init__(self, init=decomposition.PCA(n_components=2), size='medium', style='bottleneck', loss='mean_absolute_error', epochs=1000, opt='adam', l1=0.0, l2=0.0, dropout=True):
@@ -40,11 +41,14 @@ class NNProj():
         self.loss = loss
         self.l1 = l1
         self.l2 = l2
+        tf.random.set_seed(420)
 
         self.is_fitted = False
         K.clear_session()
 
     def fit(self, X):
+        # There are two seeds to account for. The global seed and the operational seed.
+        # See: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/framework/random_seed.py
         self.model = Sequential()
         self.model.add(Dense(self.layers[0], activation='relu',
                     kernel_initializer='he_uniform',

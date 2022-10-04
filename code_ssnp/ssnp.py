@@ -44,7 +44,7 @@ class SSNP():
         self.fwd = None
         self.inv = None
 
-        tf.random.set_seed(42)
+        tf.random.set_seed(420)
 
         self.is_fitted = False
         K.clear_session()

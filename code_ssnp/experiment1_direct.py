@@ -114,6 +114,9 @@ def perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, 
 
 
 def main():
+    # There are two seeds to account for. The global seed and the operational seed.
+    # See: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/framework/random_seed.py
+    random.seed(420)
     args = get_args()
     mode = str(args.mode).lower()
     n_jobs = int(args.n_jobs) - 1  # -1 for accounting for the main thread
