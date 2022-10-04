@@ -92,7 +92,7 @@ def get_args():
     return args
 
 
-def perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=4):
+def perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=4, output_dir=os.getcwd()):
     tsne = TSNE(n_jobs=n_jobs, random_state=420)
     X_tsne = tsne.fit_transform(X_train)
     ump = UMAP(random_state=420)
@@ -109,6 +109,12 @@ def perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, 
                    + (-1, -1, -1, -1))
     results.append((dataset_name, 'NNP',) + compute_all_metrics(X_train, X_nnp, D_high, D_nnp, y_train)
                    + (-1, -1, -1, -1))
+    for X_, label in zip([X_umap, X_tsne, X_nnp],
+                         ['UMAP', 'TSNE', 'NNP']):
+        fname = os.path.join(output_dir, '{0}_{1}.png'.
+                             format(dataset_name, label))
+        print(fname)
+        plot(X_, y_train, fname)
 
     return results
 
@@ -169,203 +175,32 @@ def main():
 
         X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
         D_high = metrics.compute_distance_list(X_train)
-        results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs)
+        results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
+                                             output_dir=output_dir)
 
     for num_epoch, num_classes_mult, patience, min_delta in tqdm(parameter_set):
-        epochs_dataset = dict()
-        for dataset_name in data_dirs:
-            epochs_dataset[dataset_name] = num_epoch
+        parameter_results = compute_parametrized_layouts(num_classes_mult, data_dir, data_dirs, min_delta, num_epoch,
+                                                         output_dir, patience, verbose)
+        results.extend(parameter_results)
 
-        classes_mult = dict()
-        for dataset_name in data_dirs:
-            classes_mult[dataset_name] = num_classes_mult
-        # epochs_dataset = {'fashionmnist': 10, 'mnist': 10, 'har': 10, 'reuters': 10, '20_newsgroups_bow': 10,
-        #                  '20_newsgroups_tfidf': 10, 'ag_news_bow': 10, 'ag_news_tfidf': 10, 'hatespeech_bow': 10,
-        #                  'hatespeech_tfidf': 10, 'imdb_bow': 10, 'imdb_tfidf': 10, 'sms_spam_bow': 10,
-        #                  'sms_spam_tfidf': 10}
+        df = pd.DataFrame(results, columns=['dataset_name',
+                                            'test_name',
+                                            'T_train',
+                                            'C_train',
+                                            'R_train',
+                                            'S_train',
+                                            'N_train',
+                                            'MSE_train',
+                                            'ha_train',
+                                            'sh_train',
+                                            'd_train',
+                                            'sdbw_train',
+                                            'num_epoch',
+                                            'n_cluster',
+                                            'patience',
+                                            'min_delta'])
 
-        # classes_mult = {'fashionmnist': 2, 'mnist': 2, 'har': 2, 'reuters': 1, '20_newsgroups_bow': 2,
-        #                '20_newsgroups_tfidf': 2, 'ag_news_bow': 2, 'ag_news_tfidf': 2, 'hatespeech_bow': 2,
-        #                'hatespeech_tfidf': 2, 'imdb_bow': 2, 'imdb_tfidf': 2, 'sms_spam_bow': 2, 'sms_spam_tfidf': 2}
-
-        for d in data_dirs:
-            dataset_name = d
-
-            print('------------------------------------------------------')
-            print('Dataset: {0}'.format(dataset_name))
-
-            X = np.load(os.path.join(data_dir, d, 'X.npy'))
-            y = np.load(os.path.join(data_dir, d, 'y.npy'))
-
-            print("X shape: " + str(X.shape))
-            print("y shape: " + str(y.shape))
-            print(np.unique(y))
-
-            n_classes = len(np.unique(y)) * classes_mult[dataset_name]
-            print("Using num_clusters: " + str(n_classes))
-            n_samples = X.shape[0]
-
-            train_size = min(int(n_samples * 0.9), 5000)
-
-            X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
-            D_high = metrics.compute_distance_list(X_train)
-
-            epochs = epochs_dataset[dataset_name]
-
-            ssnpgt = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
-            ssnpgt.fit(X_train, y_train)
-            X_ssnpgt = ssnpgt.transform(X_train)
-
-            ssnpkm = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
-            C = KMeans(n_clusters=n_classes)
-            y_km = C.fit_predict(X_train)
-            ssnpkm.fit(X_train, y_km)
-            X_ssnpkm = ssnpkm.transform(X_train)
-
-            ssnpif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
-            outlier_model = IsolationForest()
-            y_if = outlier_model.fit_predict(X_train)
-            y_if = np.array([0 if el == -1 else el for el in y_if])
-            ssnpif.fit(X_train, y_if)
-            X_ssnpif = ssnpif.transform(X_train)
-
-            ssnpkmif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
-            y_res_kmif = cantor_pairing(y_km, y_if)
-            ssnpkmif.fit(X_train, y_res_kmif)
-            X_ssnpkmif = ssnpkmif.transform(X_train)
-
-            ssnpag = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
-            C = AgglomerativeClustering(n_clusters=n_classes)
-            y_ag = C.fit_predict(X_train)
-            ssnpag.fit(X_train, y_ag)
-            X_ssnpag = ssnpag.transform(X_train)
-
-            ssnpagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
-            y_res_agif = cantor_pairing(y_ag, y_if)
-            ssnpagif.fit(X_train, y_res_agif)
-            X_ssnpagif = ssnpagif.transform(X_train)
-
-            ssnpkmagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                                   bottleneck_activation='linear')
-            y_res_kmagif = cantor_pairing(y_res_kmif, y_ag)
-            ssnpkmagif.fit(X_train, y_res_kmagif)
-            X_ssnpkmagif = ssnpkmagif.transform(X_train)
-
-            ssnplof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
-            outlier_model = LocalOutlierFactor()
-            y_lof = outlier_model.fit_predict(X_train)
-            y_lof = np.array([0 if el == -1 else el for el in y_lof])
-            ssnplof.fit(X_train, y_lof)
-            X_ssnplof = ssnplof.transform(X_train)
-
-            ssnpkmlof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                                  bottleneck_activation='linear')
-            y_res_kmlof = cantor_pairing(y_km, y_lof)
-            ssnpkmlof.fit(X_train, y_res_kmlof)
-            X_ssnpkmlof = ssnpkmlof.transform(X_train)
-
-            ssnpaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                                  bottleneck_activation='linear')
-            y_res_aglof = cantor_pairing(y_ag, y_lof)
-            ssnpaglof.fit(X_train, y_res_aglof)
-            X_ssnpaglof = ssnpaglof.transform(X_train)
-
-            ssnpkmaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                                    bottleneck_activation='linear')
-            y_res_kmaglof = cantor_pairing(y_res_kmlof, y_ag)
-            ssnpkmaglof.fit(X_train, y_res_kmaglof)
-            X_ssnpkmaglof = ssnpkmaglof.transform(X_train)
-
-            aep = ae.AutoencoderProjection(epochs=epochs, verbose=0)
-            aep.fit(X_train)
-            X_aep = aep.transform(X_train)
-
-            D_ssnpgt = metrics.compute_distance_list(X_ssnpgt)
-            D_ssnpkm = metrics.compute_distance_list(X_ssnpkm)
-            D_ssnpif = metrics.compute_distance_list(X_ssnpif)
-            D_ssnpkmif = metrics.compute_distance_list(X_ssnpkmif)
-            D_ssnpag = metrics.compute_distance_list(X_ssnpag)
-            D_ssnpagif = metrics.compute_distance_list(X_ssnpagif)
-            D_ssnpkmagif = metrics.compute_distance_list(X_ssnpkmagif)
-            D_ssnplof = metrics.compute_distance_list(X_ssnplof)
-            D_ssnpkmlof = metrics.compute_distance_list(X_ssnpkmlof)
-            D_ssnpaglof = metrics.compute_distance_list(X_ssnpaglof)
-            D_ssnpkmaglof = metrics.compute_distance_list(X_ssnpkmaglof)
-            D_aep = metrics.compute_distance_list(X_aep)
-
-            results.append(
-                (dataset_name, 'SSNP-GT',) + compute_all_metrics(X_train, X_ssnpgt, D_high, D_ssnpgt, y_train)
-                + (num_epoch, -1, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-KMeans',) + compute_all_metrics(X_train, X_ssnpkm, D_high, D_ssnpkm, y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-IF',) + compute_all_metrics(X_train, X_ssnpif, D_high, D_ssnpif, y_train)
-                + (num_epoch, -1, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-KMeans-IF',) + compute_all_metrics(X_train, X_ssnpkmif, D_high, D_ssnpkmif,
-                                                                        y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-AG',) + compute_all_metrics(X_train, X_ssnpag, D_high, D_ssnpag, y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-AG-IF',) + compute_all_metrics(X_train, X_ssnpagif, D_high, D_ssnpagif, y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-KM-AG-IF',) + compute_all_metrics(X_train, X_ssnpkmagif, D_high, D_ssnpkmagif,
-                                                                       y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-LOF',) + compute_all_metrics(X_train, X_ssnplof, D_high, D_ssnplof, y_train)
-                + (num_epoch, -1, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-KMeans-LOF',) + compute_all_metrics(X_train, X_ssnpkmlof, D_high, D_ssnpkmlof,
-                                                                         y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-AG-LOF',) + compute_all_metrics(X_train, X_ssnpaglof, D_high, D_ssnpaglof, y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append(
-                (dataset_name, 'SSNP-KM-AG-LOF',) + compute_all_metrics(X_train, X_ssnpkmaglof, D_high, D_ssnpkmaglof,
-                                                                        y_train)
-                + (num_epoch, n_classes, patience, min_delta))
-            results.append((dataset_name, 'AE',) + compute_all_metrics(X_train, X_aep, D_high, D_aep, y_train)
-                           + (num_epoch, -1, patience, min_delta))
-
-            for X_, label in zip([X_ssnpgt, X_ssnpkm, X_ssnpif, X_ssnpkmif, X_ssnpag, X_ssnpagif, X_ssnpkmagif,
-                                  X_ssnplof, X_ssnpkmlof, X_ssnpaglof, X_ssnpkmaglof, X_umap, X_tsne, X_aep, X_nnp],
-                                 ['SSNP-GT', 'SSNP-KMeans', 'SSNP-IF', 'SSNP-KMeans-IF', 'SSNP-AG', 'SSNP-AG-IF',
-                                  'SSNP-KM-AG-IF',
-                                  'SSNP-LOF', 'SSNP-KMeans-LOF', 'SSNP-AG-LOF', 'SSNP-KM-AG-LOF', 'UMAP', 'TSNE', 'AE',
-                                  'NNP']):
-                if "KM" in label or "AG" in label:
-                    fname = os.path.join(output_dir, '{0}_{1}_epochs_{2}_n_cluster_{3}_patience_{4}_min_delta_{5}.png'.
-                                         format(dataset_name, label, num_epoch, n_classes, patience, min_delta))
-                else:
-                    fname = os.path.join(output_dir, '{0}_{1}_epochs_{2}_patience_{3}_min_delta_{4}.png'.
-                                         format(dataset_name, label, num_epoch, patience, min_delta))
-                print(fname)
-                plot(X_, y_train, fname)
-
-            df = pd.DataFrame(results, columns=['dataset_name',
-                                                'test_name',
-                                                'T_train',
-                                                'C_train',
-                                                'R_train',
-                                                'S_train',
-                                                'N_train',
-                                                'MSE_train',
-                                                'ha_train',
-                                                'sh_train',
-                                                'd_train',
-                                                'sdbw_train',
-                                                'num_epoch',
-                                                'n_cluster',
-                                                'patience',
-                                                'min_delta'])
-
-            df.to_csv(os.path.join(output_dir, "metrics_" + str(time_stamp) + ".csv"), header=True, index=False)
+        df.to_csv(os.path.join(output_dir, "metrics_" + str(time_stamp) + ".csv"), header=True, index=False)
     # don't plot NNP
     font = ImageFont.truetype("/usr/share/fonts/dejavu/DejaVuSans.ttf", 50)
     pri_images = ['SSNP-KMeans', 'SSNP-AG', 'AE', 'TSNE', 'UMAP', 'SSNP-GT']
@@ -411,6 +246,172 @@ def main():
 
         for i, label in enumerate(pri_images):
             print('/composite_{0}.png'.format(dataset_name), "{0} {1}".format(dataset_name, label))
+
+
+def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, num_epoch, output_dir,
+                                 patience, verbose):
+    results = []
+
+    for d in data_dirs:
+        dataset_name = d
+
+        print('------------------------------------------------------')
+        print('Dataset: {0}'.format(dataset_name))
+
+        X = np.load(os.path.join(data_dir, d, 'X.npy'))
+        y = np.load(os.path.join(data_dir, d, 'y.npy'))
+
+        print("X shape: " + str(X.shape))
+        print("y shape: " + str(y.shape))
+        print(np.unique(y))
+
+        n_classes = len(np.unique(y)) * classes_mult
+        print("Using num_clusters: " + str(n_classes))
+        n_samples = X.shape[0]
+
+        train_size = min(int(n_samples * 0.9), 5000)
+
+        X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
+        D_high = metrics.compute_distance_list(X_train)
+
+        epochs = num_epoch
+
+        ssnpgt = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnpgt.fit(X_train, y_train)
+        X_ssnpgt = ssnpgt.transform(X_train)
+
+        ssnpkm = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        C = KMeans(n_clusters=n_classes)
+        y_km = C.fit_predict(X_train)
+        ssnpkm.fit(X_train, y_km)
+        X_ssnpkm = ssnpkm.transform(X_train)
+
+        ssnpif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        outlier_model = IsolationForest()
+        y_if = outlier_model.fit_predict(X_train)
+        y_if = np.array([0 if el == -1 else el for el in y_if])
+        ssnpif.fit(X_train, y_if)
+        X_ssnpif = ssnpif.transform(X_train)
+
+        ssnpkmif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        y_res_kmif = cantor_pairing(y_km, y_if)
+        ssnpkmif.fit(X_train, y_res_kmif)
+        X_ssnpkmif = ssnpkmif.transform(X_train)
+
+        ssnpag = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        C = AgglomerativeClustering(n_clusters=n_classes)
+        y_ag = C.fit_predict(X_train)
+        ssnpag.fit(X_train, y_ag)
+        X_ssnpag = ssnpag.transform(X_train)
+
+        ssnpagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        y_res_agif = cantor_pairing(y_ag, y_if)
+        ssnpagif.fit(X_train, y_res_agif)
+        X_ssnpagif = ssnpagif.transform(X_train)
+
+        ssnpkmagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
+                               bottleneck_activation='linear')
+        y_res_kmagif = cantor_pairing(y_res_kmif, y_ag)
+        ssnpkmagif.fit(X_train, y_res_kmagif)
+        X_ssnpkmagif = ssnpkmagif.transform(X_train)
+
+        ssnplof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        outlier_model = LocalOutlierFactor()
+        y_lof = outlier_model.fit_predict(X_train)
+        y_lof = np.array([0 if el == -1 else el for el in y_lof])
+        ssnplof.fit(X_train, y_lof)
+        X_ssnplof = ssnplof.transform(X_train)
+
+        ssnpkmlof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
+                              bottleneck_activation='linear')
+        y_res_kmlof = cantor_pairing(y_km, y_lof)
+        ssnpkmlof.fit(X_train, y_res_kmlof)
+        X_ssnpkmlof = ssnpkmlof.transform(X_train)
+
+        ssnpaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
+                              bottleneck_activation='linear')
+        y_res_aglof = cantor_pairing(y_ag, y_lof)
+        ssnpaglof.fit(X_train, y_res_aglof)
+        X_ssnpaglof = ssnpaglof.transform(X_train)
+
+        ssnpkmaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
+                                bottleneck_activation='linear')
+        y_res_kmaglof = cantor_pairing(y_res_kmlof, y_ag)
+        ssnpkmaglof.fit(X_train, y_res_kmaglof)
+        X_ssnpkmaglof = ssnpkmaglof.transform(X_train)
+
+        aep = ae.AutoencoderProjection(epochs=epochs, verbose=0)
+        aep.fit(X_train)
+        X_aep = aep.transform(X_train)
+
+        D_ssnpgt = metrics.compute_distance_list(X_ssnpgt)
+        D_ssnpkm = metrics.compute_distance_list(X_ssnpkm)
+        D_ssnpif = metrics.compute_distance_list(X_ssnpif)
+        D_ssnpkmif = metrics.compute_distance_list(X_ssnpkmif)
+        D_ssnpag = metrics.compute_distance_list(X_ssnpag)
+        D_ssnpagif = metrics.compute_distance_list(X_ssnpagif)
+        D_ssnpkmagif = metrics.compute_distance_list(X_ssnpkmagif)
+        D_ssnplof = metrics.compute_distance_list(X_ssnplof)
+        D_ssnpkmlof = metrics.compute_distance_list(X_ssnpkmlof)
+        D_ssnpaglof = metrics.compute_distance_list(X_ssnpaglof)
+        D_ssnpkmaglof = metrics.compute_distance_list(X_ssnpkmaglof)
+        D_aep = metrics.compute_distance_list(X_aep)
+
+        results.append(
+            (dataset_name, 'SSNP-GT',) + compute_all_metrics(X_train, X_ssnpgt, D_high, D_ssnpgt, y_train)
+            + (num_epoch, -1, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-KMeans',) + compute_all_metrics(X_train, X_ssnpkm, D_high, D_ssnpkm, y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-IF',) + compute_all_metrics(X_train, X_ssnpif, D_high, D_ssnpif, y_train)
+            + (num_epoch, -1, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-KMeans-IF',) + compute_all_metrics(X_train, X_ssnpkmif, D_high, D_ssnpkmif,
+                                                                    y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-AG',) + compute_all_metrics(X_train, X_ssnpag, D_high, D_ssnpag, y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-AG-IF',) + compute_all_metrics(X_train, X_ssnpagif, D_high, D_ssnpagif, y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-KM-AG-IF',) + compute_all_metrics(X_train, X_ssnpkmagif, D_high, D_ssnpkmagif,
+                                                                   y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-LOF',) + compute_all_metrics(X_train, X_ssnplof, D_high, D_ssnplof, y_train)
+            + (num_epoch, -1, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-KMeans-LOF',) + compute_all_metrics(X_train, X_ssnpkmlof, D_high, D_ssnpkmlof,
+                                                                     y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-AG-LOF',) + compute_all_metrics(X_train, X_ssnpaglof, D_high, D_ssnpaglof, y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append(
+            (dataset_name, 'SSNP-KM-AG-LOF',) + compute_all_metrics(X_train, X_ssnpkmaglof, D_high, D_ssnpkmaglof,
+                                                                    y_train)
+            + (num_epoch, n_classes, patience, min_delta))
+        results.append((dataset_name, 'AE',) + compute_all_metrics(X_train, X_aep, D_high, D_aep, y_train)
+                       + (num_epoch, -1, patience, min_delta))
+
+        for X_, label in zip([X_ssnpgt, X_ssnpkm, X_ssnpif, X_ssnpkmif, X_ssnpag, X_ssnpagif, X_ssnpkmagif,
+                              X_ssnplof, X_ssnpkmlof, X_ssnpaglof, X_ssnpkmaglof, X_aep],
+                             ['SSNP-GT', 'SSNP-KMeans', 'SSNP-IF', 'SSNP-KMeans-IF', 'SSNP-AG', 'SSNP-AG-IF',
+                              'SSNP-KM-AG-IF',
+                              'SSNP-LOF', 'SSNP-KMeans-LOF', 'SSNP-AG-LOF', 'SSNP-KM-AG-LOF', 'AE']):
+            if "KM" in label or "AG" in label:
+                fname = os.path.join(output_dir, '{0}_{1}_epochs_{2}_n_cluster_{3}_patience_{4}_min_delta_{5}.png'.
+                                     format(dataset_name, label, num_epoch, n_classes, patience, min_delta))
+            else:
+                fname = os.path.join(output_dir, '{0}_{1}_epochs_{2}_patience_{3}_min_delta_{4}.png'.
+                                     format(dataset_name, label, num_epoch, patience, min_delta))
+            print(fname)
+            plot(X_, y_train, fname)
+
+    return results
 
 
 if __name__ == '__main__':
