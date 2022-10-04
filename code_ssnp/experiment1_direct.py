@@ -6,6 +6,7 @@ import random
 import time
 import warnings
 from itertools import product
+from multiprocessing import Queue, Process
 
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
@@ -119,6 +120,12 @@ def perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, 
     return results
 
 
+def worker(input, output):
+    for func, args in iter(input.get, 'STOP'):
+        result = func(*args)
+        output.put(result)
+
+
 def main():
     # There are two seeds to account for. The global seed and the operational seed.
     # See: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/framework/random_seed.py
@@ -133,7 +140,7 @@ def main():
     output_dir = 'results_direct'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    data_dir = '../data'
+    data_root = '../data'
     if mode == "full":
         data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters', '20_newsgroups_bow', '20_newsgroups_tfidf',
                      'ag_news_bow',
@@ -167,8 +174,8 @@ def main():
         print('------------------------------------------------------')
         print('Dataset: {0}'.format(dataset_name))
 
-        X = np.load(os.path.join(data_dir, d, 'X.npy'))
-        y = np.load(os.path.join(data_dir, d, 'y.npy'))
+        X = np.load(os.path.join(data_root, d, 'X.npy'))
+        y = np.load(os.path.join(data_root, d, 'y.npy'))
 
         n_samples = X.shape[0]
         train_size = min(int(n_samples * 0.9), 5000)
@@ -178,29 +185,49 @@ def main():
         results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
                                              output_dir=output_dir)
 
-    for num_epoch, num_classes_mult, patience, min_delta in tqdm(parameter_set):
-        parameter_results = compute_parametrized_layouts(num_classes_mult, data_dir, data_dirs, min_delta, num_epoch,
-                                                         output_dir, patience, verbose)
-        results.extend(parameter_results)
+    tasks = []
+    for num_epoch, num_classes_mult, patience, min_delta in parameter_set:
+        tasks.append((compute_parametrized_layouts, (num_classes_mult, data_root, data_dirs, min_delta, num_epoch,
+                                                     output_dir, patience, verbose)))
 
-        df = pd.DataFrame(results, columns=['dataset_name',
-                                            'test_name',
-                                            'T_train',
-                                            'C_train',
-                                            'R_train',
-                                            'S_train',
-                                            'N_train',
-                                            'MSE_train',
-                                            'ha_train',
-                                            'sh_train',
-                                            'd_train',
-                                            'sdbw_train',
-                                            'num_epoch',
-                                            'n_cluster',
-                                            'patience',
-                                            'min_delta'])
+    with tqdm(total=len(parameter_set)) as pbar:
+        tasks_queue = Queue()
+        done_queue = Queue()
 
-        df.to_csv(os.path.join(output_dir, "metrics_" + str(time_stamp) + ".csv"), header=True, index=False)
+        for task in tasks:
+            tasks_queue.put(task)
+        for i in range(n_jobs):
+            Process(target=worker, args=(tasks_queue, done_queue)).start()
+        for i in range(len(tasks)):
+            results.extend(done_queue.get())
+            write_results(output_dir, results)
+            pbar.update(1)
+        for i in range(n_jobs):
+            tasks_queue.put("STOP")
+    # plot_additional_composites(data_dirs, output_dir)
+
+
+def write_results(output_dir, results):
+    df = pd.DataFrame(results, columns=['dataset_name',
+                                        'test_name',
+                                        'T_train',
+                                        'C_train',
+                                        'R_train',
+                                        'S_train',
+                                        'N_train',
+                                        'MSE_train',
+                                        'ha_train',
+                                        'sh_train',
+                                        'd_train',
+                                        'sdbw_train',
+                                        'num_epoch',
+                                        'n_cluster',
+                                        'patience',
+                                        'min_delta'])
+    df.to_csv(os.path.join(output_dir, "metrics_" + str(time_stamp) + ".csv"), header=True, index=False)
+
+
+def plot_additional_composites(data_dirs, output_dir):
     # don't plot NNP
     font = ImageFont.truetype("/usr/share/fonts/dejavu/DejaVuSans.ttf", 50)
     pri_images = ['SSNP-KMeans', 'SSNP-AG', 'AE', 'TSNE', 'UMAP', 'SSNP-GT']
