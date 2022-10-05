@@ -9,6 +9,7 @@ RUN pip3 install -r requirements.txt
 RUN pip3 install tqdm
 
 WORKDIR /
+RUN mkdir results_direct
 COPY . .
 # COPY preprocessed_data/ /preprocessed_data/
 
