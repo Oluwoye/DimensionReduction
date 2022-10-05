@@ -10,7 +10,7 @@ services:
     command: ["/usr/bin/env", "python3", "./code_ssnp/experiment1_direct.py", "--mode", "tfidf", "--n_jobs", "20", "--optimization", "random", "--random_permutations", "100"]
     volumes:
       - ./data/:/data
-      - ./code_ssnp/results_direct/:/results_direct
+      - /workspace/DimensionReduction/code_ssnp/results_direct/:/results_direct
       - /tmp/:/tmp
     deploy:
       resources:
