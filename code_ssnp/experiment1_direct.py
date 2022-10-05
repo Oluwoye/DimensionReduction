@@ -295,18 +295,18 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
     for d in data_dirs:
         dataset_name = d
 
-        print('------------------------------------------------------')
-        print('Dataset: {0}'.format(dataset_name))
+        print('------------------------------------------------------', flush=True)
+        print('Dataset: {0}'.format(dataset_name), flush=True)
 
         X = np.load(os.path.join(data_dir, d, 'X.npy'))
         y = np.load(os.path.join(data_dir, d, 'y.npy'))
 
-        print("X shape: " + str(X.shape))
-        print("y shape: " + str(y.shape))
+        print("X shape: " + str(X.shape), flush=True)
+        print("y shape: " + str(y.shape), flush=True)
         print(np.unique(y))
 
         n_classes = len(np.unique(y)) * classes_mult
-        print("Using num_clusters: " + str(n_classes))
+        print("Using num_clusters: " + str(n_classes), flush=True)
         n_samples = X.shape[0]
 
         train_size = min(int(n_samples * 0.9), 5000)
@@ -320,7 +320,7 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
                            min_delta=min_delta)
         ssnpgt.fit(X_train, y_train)
         X_ssnpgt = ssnpgt.transform(X_train)
-        print("Finished SSNP")
+        print("Finished SSNP", flush=True)
 
         ssnpkm = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
                            min_delta=min_delta)
@@ -328,7 +328,7 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
         y_km = C.fit_predict(X_train)
         ssnpkm.fit(X_train, y_km)
         X_ssnpkm = ssnpkm.transform(X_train)
-        print("Finished SSNPkm")
+        print("Finished SSNPkm", flush=True)
 
         ssnpif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
                            min_delta=min_delta)
@@ -337,14 +337,14 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
         y_if = np.array([0 if el == -1 else el for el in y_if])
         ssnpif.fit(X_train, y_if)
         X_ssnpif = ssnpif.transform(X_train)
-        print("Finished SSNPif")
+        print("Finished SSNPif", flush=True)
 
         ssnpkmif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
                              min_delta=min_delta)
         y_res_kmif = cantor_pairing(y_km, y_if)
         ssnpkmif.fit(X_train, y_res_kmif)
         X_ssnpkmif = ssnpkmif.transform(X_train)
-        print("Finished SSNPkmif")
+        print("Finished SSNPkmif", flush=True)
 
         ssnpag = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
                            min_delta=min_delta)
@@ -352,20 +352,20 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
         y_ag = C.fit_predict(X_train)
         ssnpag.fit(X_train, y_ag)
         X_ssnpag = ssnpag.transform(X_train)
-        print("Finished SSNPag")
+        print("Finished SSNPag", flush=True)
 
         ssnpagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear')
         y_res_agif = cantor_pairing(y_ag, y_if)
         ssnpagif.fit(X_train, y_res_agif)
         X_ssnpagif = ssnpagif.transform(X_train)
-        print("Finished SSNPagif")
+        print("Finished SSNPagif", flush=True)
 
         ssnpkmagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
                                bottleneck_activation='linear', min_delta=min_delta)
         y_res_kmagif = cantor_pairing(y_res_kmif, y_ag)
         ssnpkmagif.fit(X_train, y_res_kmagif)
         X_ssnpkmagif = ssnpkmagif.transform(X_train)
-        print("Finished SSNPkmagif")
+        print("Finished SSNPkmagif", flush=True)
 
         ssnplof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
                             min_delta=min_delta)
@@ -374,33 +374,33 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
         y_lof = np.array([0 if el == -1 else el for el in y_lof])
         ssnplof.fit(X_train, y_lof)
         X_ssnplof = ssnplof.transform(X_train)
-        print("Finished SSNPlof")
+        print("Finished SSNPlof", flush=True)
 
         ssnpkmlof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
                               bottleneck_activation='linear', min_delta=min_delta)
         y_res_kmlof = cantor_pairing(y_km, y_lof)
         ssnpkmlof.fit(X_train, y_res_kmlof)
         X_ssnpkmlof = ssnpkmlof.transform(X_train)
-        print("Finished SSNPkmlof")
+        print("Finished SSNPkmlof", flush=True)
 
         ssnpaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
                               bottleneck_activation='linear', min_delta=min_delta)
         y_res_aglof = cantor_pairing(y_ag, y_lof)
         ssnpaglof.fit(X_train, y_res_aglof)
         X_ssnpaglof = ssnpaglof.transform(X_train)
-        print("Finished SSNPaglof")
+        print("Finished SSNPaglof", flush=True)
 
         ssnpkmaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
                                 bottleneck_activation='linear', min_delta=min_delta)
         y_res_kmaglof = cantor_pairing(y_res_kmlof, y_ag)
         ssnpkmaglof.fit(X_train, y_res_kmaglof)
         X_ssnpkmaglof = ssnpkmaglof.transform(X_train)
-        print("Finished SSNPkmaglof")
+        print("Finished SSNPkmaglof", flush=True)
 
         aep = ae.AutoencoderProjection(epochs=epochs, verbose=0)
         aep.fit(X_train)
         X_aep = aep.transform(X_train)
-        print("Finished AE")
+        print("Finished AE", flush=True)
 
         D_ssnpgt = metrics.compute_distance_list(X_ssnpgt)
         D_ssnpkm = metrics.compute_distance_list(X_ssnpkm)
