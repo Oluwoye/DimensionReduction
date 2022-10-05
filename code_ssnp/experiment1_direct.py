@@ -154,6 +154,18 @@ def main():
     else:
         raise ValueError("Unrecognized mode " + mode + " only available options are: basic, tfidf and full"
                                                        " (default: basic).")
+    for d in data_dirs:
+        data_path = os.path.join(data_root, d)
+        try:
+            os.makedirs(data_path, exist_ok=False)
+            x = np.random.randint(0, 10, size=(1000, 10))
+            y = np.random.randint(0, 10, size=(1000,))
+            np.save(os.path.join(data_path, "X.npy"), x)
+            np.save(os.path.join(data_path, "y.npy"), y)
+            print("Produced and saved toy dataset")
+        except OSError:
+            continue
+
     classes_mult_set = [1, 2, 3, 4, 5]
     epochs_set = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
     patience_set = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -182,8 +194,8 @@ def main():
 
         X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
         D_high = metrics.compute_distance_list(X_train)
-        results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
-                                             output_dir=output_dir)
+        # results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
+        #                                      output_dir=output_dir)
 
     tasks = []
     for num_epoch, num_classes_mult, patience, min_delta in parameter_set:
@@ -303,73 +315,91 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
 
         epochs = num_epoch
 
-        ssnpgt = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnpgt = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
+                           min_delta=min_delta)
         ssnpgt.fit(X_train, y_train)
         X_ssnpgt = ssnpgt.transform(X_train)
+        print("Finished SSNP")
 
-        ssnpkm = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnpkm = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
+                           min_delta=min_delta)
         C = KMeans(n_clusters=n_classes)
         y_km = C.fit_predict(X_train)
         ssnpkm.fit(X_train, y_km)
         X_ssnpkm = ssnpkm.transform(X_train)
+        print("Finished SSNPkm")
 
-        ssnpif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnpif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
+                           min_delta=min_delta)
         outlier_model = IsolationForest()
         y_if = outlier_model.fit_predict(X_train)
         y_if = np.array([0 if el == -1 else el for el in y_if])
         ssnpif.fit(X_train, y_if)
         X_ssnpif = ssnpif.transform(X_train)
+        print("Finished SSNPif")
 
-        ssnpkmif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnpkmif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
+                             min_delta=min_delta)
         y_res_kmif = cantor_pairing(y_km, y_if)
         ssnpkmif.fit(X_train, y_res_kmif)
         X_ssnpkmif = ssnpkmif.transform(X_train)
+        print("Finished SSNPkmif")
 
-        ssnpag = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnpag = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
+                           min_delta=min_delta)
         C = AgglomerativeClustering(n_clusters=n_classes)
         y_ag = C.fit_predict(X_train)
         ssnpag.fit(X_train, y_ag)
         X_ssnpag = ssnpag.transform(X_train)
+        print("Finished SSNPag")
 
-        ssnpagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnpagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear')
         y_res_agif = cantor_pairing(y_ag, y_if)
         ssnpagif.fit(X_train, y_res_agif)
         X_ssnpagif = ssnpagif.transform(X_train)
+        print("Finished SSNPagif")
 
-        ssnpkmagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                               bottleneck_activation='linear')
+        ssnpkmagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
+                               bottleneck_activation='linear', min_delta=min_delta)
         y_res_kmagif = cantor_pairing(y_res_kmif, y_ag)
         ssnpkmagif.fit(X_train, y_res_kmagif)
         X_ssnpkmagif = ssnpkmagif.transform(X_train)
+        print("Finished SSNPkmagif")
 
-        ssnplof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam', bottleneck_activation='linear')
+        ssnplof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
+                            min_delta=min_delta)
         outlier_model = LocalOutlierFactor()
         y_lof = outlier_model.fit_predict(X_train)
         y_lof = np.array([0 if el == -1 else el for el in y_lof])
         ssnplof.fit(X_train, y_lof)
         X_ssnplof = ssnplof.transform(X_train)
+        print("Finished SSNPlof")
 
-        ssnpkmlof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                              bottleneck_activation='linear')
+        ssnpkmlof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
+                              bottleneck_activation='linear', min_delta=min_delta)
         y_res_kmlof = cantor_pairing(y_km, y_lof)
         ssnpkmlof.fit(X_train, y_res_kmlof)
         X_ssnpkmlof = ssnpkmlof.transform(X_train)
+        print("Finished SSNPkmlof")
 
-        ssnpaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                              bottleneck_activation='linear')
+        ssnpaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
+                              bottleneck_activation='linear', min_delta=min_delta)
         y_res_aglof = cantor_pairing(y_ag, y_lof)
         ssnpaglof.fit(X_train, y_res_aglof)
         X_ssnpaglof = ssnpaglof.transform(X_train)
+        print("Finished SSNPaglof")
 
-        ssnpkmaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=0, opt='adam',
-                                bottleneck_activation='linear')
+        ssnpkmaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
+                                bottleneck_activation='linear', min_delta=min_delta)
         y_res_kmaglof = cantor_pairing(y_res_kmlof, y_ag)
         ssnpkmaglof.fit(X_train, y_res_kmaglof)
         X_ssnpkmaglof = ssnpkmaglof.transform(X_train)
+        print("Finished SSNPkmaglof")
 
         aep = ae.AutoencoderProjection(epochs=epochs, verbose=0)
         aep.fit(X_train)
         X_aep = aep.transform(X_train)
+        print("Finished AE")
 
         D_ssnpgt = metrics.compute_distance_list(X_ssnpgt)
         D_ssnpkm = metrics.compute_distance_list(X_ssnpkm)
