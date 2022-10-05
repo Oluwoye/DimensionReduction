@@ -196,6 +196,7 @@ def main():
         D_high = metrics.compute_distance_list(X_train)
         results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
                                              output_dir=output_dir)
+        write_results(output_dir, results)
 
     tasks = []
     for num_epoch, num_classes_mult, patience, min_delta in parameter_set:
