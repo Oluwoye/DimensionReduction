@@ -194,8 +194,8 @@ def main():
 
         X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
         D_high = metrics.compute_distance_list(X_train)
-        # results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
-        #                                      output_dir=output_dir)
+        results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
+                                             output_dir=output_dir)
 
     tasks = []
     for num_epoch, num_classes_mult, patience, min_delta in parameter_set:
