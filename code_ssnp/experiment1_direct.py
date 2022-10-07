@@ -11,7 +11,7 @@ import pandas as pd
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
-from common import worker, plot, str2bool, compute_all_metrics, cantor_pairing
+from common import worker, plot, str2bool, compute_all_metrics, cantor_pairing, normalize_input
 
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -47,10 +47,10 @@ def get_args():
                                                                            "of the original paper by Espadoto, tfidf"
                                                                            " will only add the tfidf datasets and bow"
                                                                            " will add bow and tfidf datasets")
-    parser.add_argument("-nj", "--n_jobs", dest="n_jobs", default=-1, help="Specifies how many cores are available."
-                                                                           " If a value less than 1 or 1 is given"
-                                                                           " (default: -1) no parallelization"
-                                                                           " will be used.")
+    parser.add_argument("-nj", "--n_jobs", dest="n_jobs", default=2, help="Specifies how many cores are available."
+                                                                          " If a value less than 1 or 1 is given"
+                                                                          " (default: -1) no parallelization"
+                                                                          " will be used.")
     parser.add_argument("-opt", "--optimization", dest="optimization", default="random", help="Specifies which kind"
                                                                                               "of optimization/"
                                                                                               "exploration will"
@@ -161,6 +161,7 @@ def main():
             print('Dataset: {0}'.format(dataset_name))
 
             X = np.load(os.path.join(data_root, d, 'X.npy'))
+            X = normalize_input(X)
             y = np.load(os.path.join(data_root, d, 'y.npy'))
 
             n_samples = X.shape[0]

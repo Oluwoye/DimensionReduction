@@ -32,14 +32,10 @@ class SSNP():
             self.init = initializers.GlorotUniform(seed=420)
         elif init == "random_normal":
             self.init = initializers.RandomNormal(seed=420)
-        elif init == "randorm_uniform":
+        elif init == "random_uniform":
             self.init = initializers.RandomUniform(seed=420)
         elif init == "truncated_normal":
             self.init = initializers.TruncatedNormal(seed=420)
-        elif init == "zeros":
-            self.init = initializers.Zeros()
-        elif init == "ones":
-            self.init = initializers.Ones()
         elif init == "glorot_normal":
             self.init = initializers.GlorotNormal(seed=420)
         elif init == "he_normal":

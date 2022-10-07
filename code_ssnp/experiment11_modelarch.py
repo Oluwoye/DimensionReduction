@@ -19,6 +19,8 @@ from multiprocessing import Queue, Process
 
 from tqdm import tqdm
 
+from code_ssnp.common import normalize_input
+
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 time_stamp = int(time.time())
@@ -37,10 +39,10 @@ def get_args():
                                                                            "of the original paper by Espadoto, tfidf"
                                                                            " will only add the tfidf datasets and bow"
                                                                            " will add bow and tfidf datasets")
-    parser.add_argument("-nj", "--n_jobs", dest="n_jobs", default=-1, help="Specifies how many cores are available."
-                                                                           " If a value less than 1 or 1 is given"
-                                                                           " (default: -1) no parallelization"
-                                                                           " will be used.")
+    parser.add_argument("-nj", "--n_jobs", dest="n_jobs", default=2, help="Specifies how many cores are available."
+                                                                          " If a value less than 1 or 1 is given"
+                                                                          " (default: -1) no parallelization"
+                                                                          " will be used.")
     parser.add_argument("-opt", "--optimization", dest="optimization", default="random", help="Specifies which kind"
                                                                                               "of optimization/"
                                                                                               "exploration will"
@@ -99,6 +101,7 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
         print('Dataset: {0}'.format(dataset_name), flush=True)
 
         X = np.load(os.path.join(data_dir, d, 'X.npy'))
+        X = normalize_input(X)
         y = np.load(os.path.join(data_dir, d, 'y.npy'))
 
         print("X shape: " + str(X.shape), flush=True)
@@ -302,7 +305,8 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
                                              '_bias_{10}_l1_reg_{11}'
                                              '_l2_reg{12}_model_mode_{13}.png'.
                                  format(dataset_name, label, num_epoch, n_classes, patience, min_delta, optimizer,
-                                        bottleneck_activation, layer_activation, layer_initializer,bias, l1_regularizer,
+                                        bottleneck_activation, layer_activation, layer_initializer, bias,
+                                        l1_regularizer,
                                         l2_regularizer, model_mode))
             print(fname)
             plot(X_, y_train, fname)
@@ -340,16 +344,15 @@ def main():
         raise ValueError("Unrecognized mode " + mode + " only available options are: basic, tfidf and full"
                                                        " (default: basic).")
 
-    classes_mult_set = [1, 2]
+    classes_mult_set = [1]
     epochs_set = [100, 500, 1000]
     patience_set = [3]
     min_delta_set = [0.01]
     optimizer = ["adam", "SGD", "RMSprop", "Adadelta", "Adagrad", "Adamax", "Nadam"]
-    bottleneck_activation = ["linear", "tanh", "relu", "sigmoid", "softmax", "softplus", "softsign", "selu", "elu",
-                             "exponential"]
-    layer_activation = ["linear", "tanh", "relu", "sigmoid", "softmax", "softplus", "softsign", "selu", "elu",
+    bottleneck_activation = ["linear", "tanh", "sigmoid", "softmax", "softplus", "softsign"]
+    layer_activation = ["linear", "tanh", "relu", "sigmoid", "softmax", "softplus", "softsign", "elu",
                         "exponential"]
-    layer_initializer = ["glorot_uniform", "random_normal", "random_uniform", "truncated_normal", "zeros", "ones",
+    layer_initializer = ["glorot_uniform", "random_normal", "random_uniform", "truncated_normal",
                          "glorot_normal", "he_normal", "he_uniform", "identity", "orthogonal"]
     l1_regularizer = [0.0, 0.01, 0.1]
     l2_regularizer = [0.0, 0.01, 0.1]
@@ -373,7 +376,7 @@ def main():
                                                          bottleneck_activation,
                                                          layer_activation, layer_initializer, l1_reg, l2_reg, i)))
 
-    with tqdm(total=len(parameter_set)) as pbar:
+    with tqdm(total=len(tasks)) as pbar:
         tasks_queue = Queue()
         done_queue = Queue()
 
@@ -383,7 +386,7 @@ def main():
             Process(target=worker, args=(tasks_queue, done_queue)).start()
         for i in range(len(tasks)):
             results.extend(done_queue.get())
-            write_results(output_dir, results)
+            write_results(output_dir, results, time_stamp=time_stamp)
             pbar.update(1)
         for i in range(n_jobs):
             tasks_queue.put("STOP")

@@ -24,17 +24,17 @@ def metric_neighborhood_hit(X, y, k=7):
     return np.mean(np.mean((y[neighbors] == np.tile(y.reshape((-1, 1)), k)).astype('uint8'), axis=1))
 
 
-def calculate_cluster_score_share(X_high, X_low, y, score_func, additional_params=None):
+def calculate_cluster_score_diff(X_high, X_low, y, score_func, additional_params=None):
     if additional_params is None:
         additional_params = {}
     original_score = score_func(X_high, y, **additional_params)
     projection_score = score_func(X_low, y, **additional_params)
-    return calculate_projection_metric_share(original_score, projection_score)
+    return calculate_projection_metric_diff(original_score, projection_score)
 
 
-def calculate_projection_metric_share(original_score, projection_score):
-    share = abs(1.0 - ((1.0 / original_score) * projection_score))
-    return share
+def calculate_projection_metric_diff(original_score, projection_score):
+    diff = original_score - projection_score
+    return diff
 
 
 def metric_trustworthiness(X_high, X_low, D_high_m, D_low_m, k=7):

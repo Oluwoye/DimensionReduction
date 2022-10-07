@@ -90,12 +90,12 @@ def compute_all_metrics(X, X_2d, D_high, D_low, y, X_inv=None):
     S = metrics.metric_normalized_stress(D_high, D_low)
     N = metrics.metric_neighborhood_hit(X_2d, y)
 
-    calinski_harabaz_share = metrics.calculate_cluster_score_share(X, X_2d, y, calinski_harabasz_score)
-    silhouette_share = metrics.calculate_cluster_score_share(X, X_2d, y, silhouette_score, {'metric': 'cosine'})
-    davies_bouldin_share = metrics.calculate_cluster_score_share(X, X_2d, y, davies_bouldin_score)
+    calinski_harabaz_share = metrics.calculate_cluster_score_diff(X, X_2d, y, calinski_harabasz_score)
+    silhouette_share = metrics.calculate_cluster_score_diff(X, X_2d, y, silhouette_score, {'metric': 'cosine'})
+    davies_bouldin_share = metrics.calculate_cluster_score_diff(X, X_2d, y, davies_bouldin_score)
     # For documentation see: https://github.com/alashkov83/S_Dbw
-    sdbw_share = metrics.calculate_cluster_score_share(X, X_2d, y, S_Dbw,
-                                                       {'centers_id': None, 'method': 'Kim',
+    sdbw_share = metrics.calculate_cluster_score_diff(X, X_2d, y, S_Dbw,
+                                                      {'centers_id': None, 'method': 'Kim',
                                                         'alg_noise': 'sep', 'centr': 'mean', 'nearest_centr': True,
                                                         'metric': 'cosine'})
 
@@ -528,3 +528,10 @@ def str2bool(v):
         return False
     else:
         raise ArgumentTypeError('Boolean value expected.')
+
+
+def normalize_input(X):
+    if np.max(X) > 1.0 or np.min(X) < 0.0:
+        return (X - np.min(X)) / (np.max(X) - np.min(X))
+    else:
+        return X
