@@ -11,8 +11,7 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import calinski_harabasz_score, silhouette_score, davies_bouldin_score
 from sklearn.model_selection import train_test_split
 from s_dbw import S_Dbw
-
-from code_ssnp import metrics
+import metrics
 
 
 def plot_projection(X, y, figname=None):
