@@ -11,11 +11,7 @@ import pandas as pd
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
-
-from code_ssnp import metrics, ssnp, ae
-from code_ssnp.common import cantor_pairing, compute_all_metrics, plot
-
-from common import worker, plot, str2bool, compute_all_metrics
+from common import worker, plot, str2bool, compute_all_metrics, cantor_pairing
 
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -23,6 +19,8 @@ time_stamp = int(time.time())
 
 from glob import glob
 
+import ssnp
+import ae
 import numpy as np
 from PIL import Image, ImageFont
 from skimage import io

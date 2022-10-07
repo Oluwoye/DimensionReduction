@@ -1,5 +1,7 @@
 import random
 import os
+import time
+import warnings
 from argparse import ArgumentParser
 
 import numpy as np
@@ -11,12 +13,15 @@ from sklearn.neighbors import LocalOutlierFactor
 
 import ssnp
 import metrics
-import ae
 from common import worker, cantor_pairing, compute_all_metrics, plot
 from itertools import product
 from multiprocessing import Queue, Process
 
 from tqdm import tqdm
+
+warnings.filterwarnings('ignore')
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+time_stamp = int(time.time())
 
 
 def get_args():
