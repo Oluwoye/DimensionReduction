@@ -75,6 +75,10 @@ def str2bool(v):
 
 def get_args():
     parser = ArgumentParser()
+    parser.add_argument("-dp", "--data_path", dest="data_path", default='../data', help="Specifies where the data lies."
+                                                                                        "If not given, the data is"
+                                                                                        " assumed"
+                                                                                        "to be in ../data")
     parser.add_argument("-m", "--mode", dest="mode", default="basic", help="Specifies the mode which directories should"
                                                                            "be used. The options are: basic, tfidf,"
                                                                            " full (default:basic)."
@@ -149,12 +153,12 @@ def main():
     opt = str(args.optimization).lower()
     rp = int(args.random_permutations)
     esa = bool(args.enable_static_analysis)
+    data_root = str(args.data_path)
     verbose = False
     results = []
     output_dir = 'results_direct'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    data_root = '../data'
     if mode == "full":
         data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters', '20_newsgroups_bow', '20_newsgroups_tfidf',
                      'ag_news_bow',
