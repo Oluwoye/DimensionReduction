@@ -10,7 +10,7 @@ from multiprocessing import Queue, Process
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 
-from code_ssnp.common import compute_all_metrics
+from common import compute_all_metrics
 
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
