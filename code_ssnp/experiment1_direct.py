@@ -7,10 +7,15 @@ import warnings
 from itertools import product
 from multiprocessing import Queue, Process
 
+import pandas as pd
+from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 
-from common import compute_all_metrics
+from code_ssnp import metrics, ssnp, ae
+from code_ssnp.common import cantor_pairing, compute_all_metrics, plot
+
+from common import worker, plot, str2bool, compute_all_metrics
 
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -18,59 +23,17 @@ time_stamp = int(time.time())
 
 from glob import glob
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from PIL import Image, ImageFont
 from skimage import io
 from sklearn.manifold import TSNE
-from sklearn.cluster import (AgglomerativeClustering, KMeans)
 from sklearn.model_selection import train_test_split
 from umap import UMAP
 from tqdm import tqdm
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 
-import ae
 import metrics
-import ssnp
 import nnproj
-
-
-def plot(X, y, figname=None):
-    if len(np.unique(y)) <= 10:
-        cmap = plt.get_cmap('tab10')
-    else:
-        cmap = plt.get_cmap('tab20')
-
-    fig, ax = plt.subplots(figsize=(20, 20))
-
-    for cl in np.unique(y):
-        ax.scatter(X[y == cl, 0], X[y == cl, 1], c=[cmap(cl)], label=cl, s=20)
-        ax.axis('off')
-
-    if figname is not None:
-        fig.savefig(figname)
-
-    plt.close('all')
-    del fig
-    del ax
-
-
-def cantor_pairing(y1, y2):
-    y_res = np.array(
-        [int(0.5 * (y1[i] + y2[i]) * (y1[i] + y2[i] + 1) + y2[i]) for i in range(0, len(y2))])
-    return y_res
-
-
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise ArgumentTypeError('Boolean value expected.')
 
 
 def get_args():
@@ -135,12 +98,6 @@ def perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, 
         plot(X_, y_train, fname)
 
     return results
-
-
-def worker(input, output):
-    for func, args in iter(input.get, 'STOP'):
-        result = func(*args)
-        output.put(result)
 
 
 def main():
@@ -215,7 +172,7 @@ def main():
             D_high = metrics.compute_distance_list(X_train)
             results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
                                                  output_dir=output_dir)
-            write_results(output_dir, results)
+            write_results(output_dir, results, time_stamp=time_stamp)
 
     tasks = []
     for num_epoch, num_classes_mult, patience, min_delta in parameter_set:
@@ -232,31 +189,11 @@ def main():
             Process(target=worker, args=(tasks_queue, done_queue)).start()
         for i in range(len(tasks)):
             results.extend(done_queue.get())
-            write_results(output_dir, results)
+            write_results(output_dir, results, time_stamp=time_stamp)
             pbar.update(1)
         for i in range(n_jobs):
             tasks_queue.put("STOP")
     # plot_additional_composites(data_dirs, output_dir)
-
-
-def write_results(output_dir, results):
-    df = pd.DataFrame(results, columns=['dataset_name',
-                                        'test_name',
-                                        'T_train',
-                                        'C_train',
-                                        'R_train',
-                                        'S_train',
-                                        'N_train',
-                                        'MSE_train',
-                                        'ha_train',
-                                        'sh_train',
-                                        'd_train',
-                                        'sdbw_train',
-                                        'num_epoch',
-                                        'n_cluster',
-                                        'patience',
-                                        'min_delta'])
-    df.to_csv(os.path.join(output_dir, "metrics_" + str(time_stamp) + ".csv"), header=True, index=False)
 
 
 def plot_additional_composites(data_dirs, output_dir):
@@ -307,6 +244,26 @@ def plot_additional_composites(data_dirs, output_dir):
             print('/composite_{0}.png'.format(dataset_name), "{0} {1}".format(dataset_name, label))
 
 
+def write_results(output_dir, results, time_stamp=0):
+    df = pd.DataFrame(results, columns=['dataset_name',
+                                        'test_name',
+                                        'T_train',
+                                        'C_train',
+                                        'R_train',
+                                        'S_train',
+                                        'N_train',
+                                        'MSE_train',
+                                        'ha_train',
+                                        'sh_train',
+                                        'd_train',
+                                        'sdbw_train',
+                                        'num_epoch',
+                                        'n_cluster',
+                                        'patience',
+                                        'min_delta'])
+    df.to_csv(os.path.join(output_dir, "metrics_" + str(time_stamp) + ".csv"), header=True, index=False)
+
+
 def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, num_epoch, output_dir,
                                  patience, verbose):
     results = []
@@ -335,22 +292,19 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
 
         epochs = num_epoch
 
-        ssnpgt = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
-                           min_delta=min_delta)
+        ssnpgt = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         ssnpgt.fit(X_train, y_train)
         X_ssnpgt = ssnpgt.transform(X_train)
         print("Finished SSNP", flush=True)
 
-        ssnpkm = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
-                           min_delta=min_delta)
+        ssnpkm = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         C = KMeans(n_clusters=n_classes)
         y_km = C.fit_predict(X_train)
         ssnpkm.fit(X_train, y_km)
         X_ssnpkm = ssnpkm.transform(X_train)
         print("Finished SSNPkm", flush=True)
 
-        ssnpif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
-                           min_delta=min_delta)
+        ssnpif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         outlier_model = IsolationForest()
         y_if = outlier_model.fit_predict(X_train)
         y_if = np.array([0 if el == -1 else el for el in y_if])
@@ -358,36 +312,32 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
         X_ssnpif = ssnpif.transform(X_train)
         print("Finished SSNPif", flush=True)
 
-        ssnpkmif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
-                             min_delta=min_delta)
+        ssnpkmif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         y_res_kmif = cantor_pairing(y_km, y_if)
         ssnpkmif.fit(X_train, y_res_kmif)
         X_ssnpkmif = ssnpkmif.transform(X_train)
         print("Finished SSNPkmif", flush=True)
 
-        ssnpag = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
-                           min_delta=min_delta)
+        ssnpag = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         C = AgglomerativeClustering(n_clusters=n_classes)
         y_ag = C.fit_predict(X_train)
         ssnpag.fit(X_train, y_ag)
         X_ssnpag = ssnpag.transform(X_train)
         print("Finished SSNPag", flush=True)
 
-        ssnpagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear')
+        ssnpagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         y_res_agif = cantor_pairing(y_ag, y_if)
         ssnpagif.fit(X_train, y_res_agif)
         X_ssnpagif = ssnpagif.transform(X_train)
         print("Finished SSNPagif", flush=True)
 
-        ssnpkmagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
-                               bottleneck_activation='linear', min_delta=min_delta)
+        ssnpkmagif = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         y_res_kmagif = cantor_pairing(y_res_kmif, y_ag)
         ssnpkmagif.fit(X_train, y_res_kmagif)
         X_ssnpkmagif = ssnpkmagif.transform(X_train)
         print("Finished SSNPkmagif", flush=True)
 
-        ssnplof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam', bottleneck_activation='linear',
-                            min_delta=min_delta)
+        ssnplof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         outlier_model = LocalOutlierFactor()
         y_lof = outlier_model.fit_predict(X_train)
         y_lof = np.array([0 if el == -1 else el for el in y_lof])
@@ -395,22 +345,19 @@ def compute_parametrized_layouts(classes_mult, data_dir, data_dirs, min_delta, n
         X_ssnplof = ssnplof.transform(X_train)
         print("Finished SSNPlof", flush=True)
 
-        ssnpkmlof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
-                              bottleneck_activation='linear', min_delta=min_delta)
+        ssnpkmlof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         y_res_kmlof = cantor_pairing(y_km, y_lof)
         ssnpkmlof.fit(X_train, y_res_kmlof)
         X_ssnpkmlof = ssnpkmlof.transform(X_train)
         print("Finished SSNPkmlof", flush=True)
 
-        ssnpaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
-                              bottleneck_activation='linear', min_delta=min_delta)
+        ssnpaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         y_res_aglof = cantor_pairing(y_ag, y_lof)
         ssnpaglof.fit(X_train, y_res_aglof)
         X_ssnpaglof = ssnpaglof.transform(X_train)
         print("Finished SSNPaglof", flush=True)
 
-        ssnpkmaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, opt='adam',
-                                bottleneck_activation='linear', min_delta=min_delta)
+        ssnpkmaglof = ssnp.SSNP(epochs=epochs, verbose=verbose, patience=patience, min_delta=min_delta)
         y_res_kmaglof = cantor_pairing(y_res_kmlof, y_ag)
         ssnpkmaglof.fit(X_train, y_res_kmaglof)
         X_ssnpkmaglof = ssnpkmaglof.transform(X_train)

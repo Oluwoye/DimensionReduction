@@ -1,20 +1,21 @@
 import gc
 import os
+from argparse import ArgumentTypeError
 from glob import glob
 from time import perf_counter
 
 import joblib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 from sklearn.metrics import calinski_harabasz_score, silhouette_score, davies_bouldin_score
 from sklearn.model_selection import train_test_split
 from s_dbw import S_Dbw
 
-import metrics
+from code_ssnp import metrics
 
 
-def plot(X, y, figname=None):
+def plot_projection(X, y, figname=None):
     if len(np.unique(y)) <= 10:
         cmap = plt.get_cmap('tab10')
     else:
@@ -254,15 +255,15 @@ def run_projections(output_dir, dataset_name, test_names, projections, X_train, 
             compute_all_metrics(X_train, X_train_2d, D_train_high,
                                 D_train_2d, y_train,
                                 X_inv=X_train_nd)
-        plot(X_train_2d, y_train,
-             figname=os.path.join(output_dir, '{0}_{1}_{2}.png'.format(dataset_name, test_name, 'train')))
+        plot_projection(X_train_2d, y_train,
+                        figname=os.path.join(output_dir, '{0}_{1}_{2}.png'.format(dataset_name, test_name, 'train')))
 
         if X_test_2d is not None:
             T_test, C_test, R_test, S_test, N_test, MSE_test, ha_test, sh_test, d_test, sdbw_test = \
                 compute_all_metrics(X_test, X_test_2d, D_test_high,
                                     D_test_2d, y_test, X_inv=X_test_nd)
-            plot(X_test_2d, y_test,
-                 figname=os.path.join(output_dir, '{0}_{1}_{2}.png'.format(dataset_name, test_name, 'test')))
+            plot_projection(X_test_2d, y_test,
+                            figname=os.path.join(output_dir, '{0}_{1}_{2}.png'.format(dataset_name, test_name, 'test')))
         else:
             T_test = -99.0
             C_test = -99.0
@@ -484,3 +485,46 @@ def eval_projections_time(output_dir, dataset_name, test_names, projections, X, 
             save_timings(metric_vals, results_file_name)
 
         gc.collect()
+
+
+def worker(input, output):
+    for func, args in iter(input.get, 'STOP'):
+        result = func(*args)
+        output.put(result)
+
+
+def plot(X, y, figname=None):
+    if len(np.unique(y)) <= 10:
+        cmap = plt.get_cmap('tab10')
+    else:
+        cmap = plt.get_cmap('tab20')
+
+    fig, ax = plt.subplots(figsize=(20, 20))
+
+    for cl in np.unique(y):
+        ax.scatter(X[y == cl, 0], X[y == cl, 1], c=[cmap(cl)], label=cl, s=20)
+        ax.axis('off')
+
+    if figname is not None:
+        fig.savefig(figname)
+
+    plt.close('all')
+    del fig
+    del ax
+
+
+def cantor_pairing(y1, y2):
+    y_res = np.array(
+        [int(0.5 * (y1[i] + y2[i]) * (y1[i] + y2[i] + 1) + y2[i]) for i in range(0, len(y2))])
+    return y_res
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise ArgumentTypeError('Boolean value expected.')
