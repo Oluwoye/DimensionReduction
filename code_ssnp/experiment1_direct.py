@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 import os
 import random
 import time
@@ -29,7 +28,7 @@ from sklearn.cluster import (AgglomerativeClustering, KMeans)
 from sklearn.model_selection import train_test_split
 from umap import UMAP
 from tqdm import tqdm
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 
 import ae
 import metrics
@@ -63,6 +62,17 @@ def cantor_pairing(y1, y2):
     return y_res
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise ArgumentTypeError('Boolean value expected.')
+
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("-m", "--mode", dest="mode", default="basic", help="Specifies the mode which directories should"
@@ -89,6 +99,9 @@ def get_args():
                                                                                                       " permutations"
                                                                                                       " will be"
                                                                                                       " investigated")
+    parser.add_argument("-esa", "--enable_static_analysis", dest="enable_static_analysis", default=False, nargs='?',
+                        const=True, type=str2bool, help="Whether or not the static analysis part (UMAP, T-SNE, NNP)"
+                                                        "shall be performed or not")
     args = parser.parse_args()
     return args
 
@@ -135,6 +148,7 @@ def main():
     n_jobs = int(args.n_jobs) - 1  # -1 for accounting for the main thread
     opt = str(args.optimization).lower()
     rp = int(args.random_permutations)
+    esa = bool(args.enable_static_analysis)
     verbose = False
     results = []
     output_dir = 'results_direct'
@@ -179,24 +193,25 @@ def main():
     else:
         raise ValueError("Only GRID and RANDOM are permitted values for opt (default RANDOM)")
 
-    for d in data_dirs:
-        dataset_name = d
+    if esa:
+        for d in data_dirs:
+            dataset_name = d
 
-        print("Starting non-parametric-analysis")
-        print('------------------------------------------------------')
-        print('Dataset: {0}'.format(dataset_name))
+            print("Starting non-parametric-analysis")
+            print('------------------------------------------------------')
+            print('Dataset: {0}'.format(dataset_name))
 
-        X = np.load(os.path.join(data_root, d, 'X.npy'))
-        y = np.load(os.path.join(data_root, d, 'y.npy'))
+            X = np.load(os.path.join(data_root, d, 'X.npy'))
+            y = np.load(os.path.join(data_root, d, 'y.npy'))
 
-        n_samples = X.shape[0]
-        train_size = min(int(n_samples * 0.9), 5000)
+            n_samples = X.shape[0]
+            train_size = min(int(n_samples * 0.9), 5000)
 
-        X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
-        D_high = metrics.compute_distance_list(X_train)
-        results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
-                                             output_dir=output_dir)
-        write_results(output_dir, results)
+            X_train, _, y_train, _ = train_test_split(X, y, train_size=train_size, random_state=420, stratify=y)
+            D_high = metrics.compute_distance_list(X_train)
+            results = perform_non_parametric_drs(X_train, y_train, D_high, dataset_name, results, n_jobs=n_jobs,
+                                                 output_dir=output_dir)
+            write_results(output_dir, results)
 
     tasks = []
     for num_epoch, num_classes_mult, patience, min_delta in parameter_set:
