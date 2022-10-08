@@ -124,6 +124,8 @@ def main():
                      'ag_news_tfidf', 'hatespeech_tfidf', 'imdb_tfidf', 'sms_spam_tfidf']
     elif mode == "basic":
         data_dirs = ['mnist', 'fashionmnist', 'har', 'reuters']
+    elif mode == "test":
+        data_dirs = ["mnist"]
     else:
         raise ValueError("Unrecognized mode " + mode + " only available options are: basic, tfidf and full"
                                                        " (default: basic).")
