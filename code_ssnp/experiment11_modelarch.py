@@ -13,13 +13,11 @@ from sklearn.neighbors import LocalOutlierFactor
 
 import ssnp
 import metrics
-from common import worker, cantor_pairing, compute_all_metrics, plot
+from common import worker, cantor_pairing, compute_all_metrics, plot, normalize_input
 from itertools import product
 from multiprocessing import Queue, Process
 
 from tqdm import tqdm
-
-from code_ssnp.common import normalize_input
 
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
