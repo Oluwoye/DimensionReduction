@@ -3,9 +3,11 @@ import pandas as pd
 import numpy as np
 
 import scipy.stats as stats
+from scipy.stats import SpearmanRConstantInputWarning
 from statsmodels.stats.descriptivestats import sign_test
 import matplotlib.pyplot as plt
 from common import normalize_input
+import warnings
 
 
 def postprocess_csv_result_file_experiment_one(result_file, project_column="dataset_name"):
@@ -26,7 +28,7 @@ def postprocess_csv_result_file_experiment_one(result_file, project_column="data
 def evaluate_results(all_metrics, cluster_metrics, espadoto_metrics, parameters_columns, project_column, projects,
                      result_dir, result_file, results_df, min_null=None):
     if min_null is None:
-        min_null = [0.1, 0.05, 0.01]
+        min_null = [0.1, 0.05, 0.01, 0.001]
     top_rows = []
     for project in projects:
         project_df = results_df[results_df[project_column] == project]
@@ -128,27 +130,46 @@ def evaluate_results(all_metrics, cluster_metrics, espadoto_metrics, parameters_
                 differences = parameter_values - metric_values
             except:
                 continue
+            # Pearson would assume normal distribution
+            with warnings.catch_warnings():
+                warnings.filterwarnings('error')
+                try:
+                    spearman_statistic = stats.spearmanr(a=metric_values, b=parameter_values)
+                except SpearmanRConstantInputWarning:
+                    # If the input is constant then there is no point in analysing this any further
+                    print("Handled constant input")
+                    continue
             statistic_test_values.append([metric, parameter,
                                           stats.wilcoxon(x=metric_values, y=parameter_values).pvalue,
                                           stats.mannwhitneyu(x=metric_values, y=parameter_values).pvalue,
-                                          sign_test(differences)[1]
+                                          sign_test(differences)[1],
+                                          spearman_statistic[0], spearman_statistic[1]
                                           ])
+
     statistic_test_values = pd.DataFrame(data=statistic_test_values,
                                          columns=["Metric", "Parameter", "Wilcoxon_statistic_p_value",
-                                                  "Mann_Whitney_u_test_p_value", "Sign_test_for_differences_p_value"])
+                                                  "Mann_Whitney_u_test_p_value", "Sign_test_for_differences_p_value",
+                                                  "Spearman_correlation_statistic", "Spearman_correlation_p_value"])
     statistic_test_values.to_csv(os.path.join(result_dir, "statistical_" + result_file.split(os.sep)[-1]))
 
+    spearman_p_values = statistic_test_values["Spearman_correlation_p_value"].to_numpy()
     wilcoxon_values = statistic_test_values["Wilcoxon_statistic_p_value"].to_numpy()
     mann_values = statistic_test_values["Mann_Whitney_u_test_p_value"].to_numpy()
     sign_values = statistic_test_values["Sign_test_for_differences_p_value"].to_numpy()
 
     for cut_off_value in min_null:
-        over = np.intersect1d([i for i, value in enumerate(wilcoxon_values) if value > cut_off_value],
-                              [i for i, value in enumerate(mann_values) if value > cut_off_value])
-        over = np.intersect1d(over, [i for i, value in enumerate(sign_values) if value > cut_off_value])
+        over = [i for i, value in enumerate(spearman_p_values) if value < cut_off_value],
         null_df = statistic_test_values.iloc[over]
-        null_df.to_csv(os.path.join(result_dir, "null_hypothesis_uphold_" + str(cut_off_value) + "_" +
+        null_df.to_csv(os.path.join(result_dir, "correlation_null_hypothesis_unlikely_" + str(cut_off_value) + "_" +
                                     result_file.split(os.sep)[-1]))
+
+        over = np.intersect1d(over, [i for i, value in enumerate(wilcoxon_values) if value > cut_off_value])
+        over = np.intersect1d(over, [i for i, value in enumerate(mann_values) if value > cut_off_value])
+        over = np.intersect1d(over, [i for i, value in enumerate(sign_values) if value > cut_off_value])
+
+        null_df = statistic_test_values.iloc[over]
+        null_df.to_csv(os.path.join(result_dir, "same_distribution_uphold_correlation_likely_" + str(cut_off_value)
+                                    + "_" + result_file.split(os.sep)[-1]))
 
 
 def posprocess_csv_result_architecture_experiment(base_path, csv_files, project_column="dataset_name"):
