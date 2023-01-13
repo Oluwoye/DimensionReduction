@@ -273,7 +273,7 @@ def run_projections(output_dir, dataset_name, test_names, projections, X_train, 
             ha_test = -99.0
             sh_test = -99.0
             d_test = -99.0
-            sdbw_test = --9.0
+            sdbw_test = -99.0
 
         results[test_name] = {}
         results[test_name]['X_train_2d'] = X_train_2d
