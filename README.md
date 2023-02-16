@@ -1,21 +1,7 @@
-# SSNP
+# Evaluating SSNP
 
-This is the repository containing the source code for the paper titled "Self-supervised Dimensionality Reduction with Neural Networks and Pseudo-labeling", by M. Espadoto, N. S. T. Hirata and A. C. Telea, presented at IVAPP 2021.
+This is the repository containing the source code for the paper titled "Evaluating Architectures and Hyperparameters of Self-supervised Network Projections", by T. Cech, D. Atzberger, W. Scheibek, R. Richter and J. Döllner, presented at IVAPP 2023.
 
-## Python Setup
+Based on the source code for the paper titled "Self-supervised Dimensionality Reduction with Neural Networks and Pseudo-labeling", by M. Espadoto, N. S. T. Hirata and A. C. Telea, presented at IVAPP 2021 https://github.com/mespadoto/ssnp and
 
-- Install Anaconda Python
-- Install tensorflow, MulticoreTSNE and UMAP
-
-```
-$ pip install tensorflow-gpu multicoretsne umap-learn
-```
-
-## Obtain Datasets and Run Experiments
-```
-$ cd code
-$ python get_data.py
-$ python experiment1_direct.py
-$ python experiment2_inverse.py
-$ python experiment3_clustering.py
-```
+on the source code for the paper titled "Self-supervised Dimensionality Reduction with Neural Networks and Pseudo-labeling", by Y.Kim, M. Espadoto, S. C. Trager, J. B. T. M. Roerdink and A. C. Telea, presented at IVAPP 2022 https://github.com/youngjookim/sdr-nnp
