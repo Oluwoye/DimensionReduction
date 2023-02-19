@@ -5,3 +5,9 @@ This is the repository containing the source code for the paper titled "Evaluati
 Based on the source code for the paper titled "Self-supervised Dimensionality Reduction with Neural Networks and Pseudo-labeling", by M. Espadoto, N. S. T. Hirata and A. C. Telea, presented at IVAPP 2021 https://github.com/mespadoto/ssnp and
 
 on the source code for the paper titled "SDR-NNP: Sharpened Dimensionality Reduction with Neural Networks", by Y.Kim, M. Espadoto, S. C. Trager, J. B. T. M. Roerdink and A. C. Telea, presented at IVAPP 2022 https://github.com/youngjookim/sdr-nnp
+
+# Experiments
+
+code_ssnp/experiment1_direct.py was used for performing the first experiment concerning the optimization of training-related hyperparameters and
+code_ssnp/experiment11_modelarch.py was used for performing the second experiment concerning the model architecture.
+See the paper for details.
